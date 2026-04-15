@@ -1,63 +1,69 @@
 import streamlit as st
 import numpy as np
-from agent import QAgent
-from env import SimpleWalkEnv
+import time
 
-st.set_page_config(page_title="RL Walker", layout="wide")
+st.set_page_config(page_title="RL Bot Walker", layout="centered")
 
-st.title("🤖 Reinforcement Learning Walker")
+st.title("🤖 RL Walking Bot (Visual Demo)")
 
-# Initialize
-if "agent" not in st.session_state:
-    st.session_state.agent = QAgent(10, 2)
-    st.session_state.env = SimpleWalkEnv(10)
-    st.session_state.rewards = []
+# Environment
+SIZE = 10
 
-agent = st.session_state.agent
-env = st.session_state.env
+# Q-learning setup
+if "q_table" not in st.session_state:
+    st.session_state.q_table = np.zeros((SIZE, 2))
+    st.session_state.epsilon = 0.3
+    st.session_state.lr = 0.1
+    st.session_state.gamma = 0.9
+
+q_table = st.session_state.q_table
+
+def choose_action(state):
+    if np.random.rand() < st.session_state.epsilon:
+        return np.random.randint(2)
+    return np.argmax(q_table[state])
+
+def update(state, action, reward, next_state):
+    best_next = np.max(q_table[next_state])
+    q_table[state, action] += st.session_state.lr * (
+        reward + st.session_state.gamma * best_next - q_table[state, action]
+    )
 
 # Controls
-episodes = st.slider("Episodes", 10, 500, 100)
+episodes = st.slider("Episodes", 10, 200, 50)
 
-if st.button("Start Training"):
-    st.session_state.rewards = []
+if st.button("🚀 Train & Watch Bot"):
+    placeholder = st.empty()
 
     for ep in range(episodes):
-        state = env.reset()
-        total_reward = 0
+        state = 0
 
-        for _ in range(50):
-            action = agent.choose_action(state)
-            next_state, reward, done = env.step(action)
+        for step in range(20):
+            action = choose_action(state)
 
-            agent.update(state, action, reward, next_state)
+            # Move
+            if action == 1:
+                next_state = min(SIZE - 1, state + 1)
+            else:
+                next_state = max(0, state - 1)
 
+            reward = 1 if next_state == SIZE - 1 else -0.01
+
+            update(state, action, reward, next_state)
             state = next_state
-            total_reward += reward
 
-            if done:
+            # 🟢 VISUAL BOT
+            line = ["⬜"] * SIZE
+            line[state] = "🤖"
+
+            placeholder.markdown(
+                f"### Episode {ep+1}\n\n" + " ".join(line)
+            )
+
+            time.sleep(0.2)
+
+            if state == SIZE - 1:
                 break
 
-        st.session_state.rewards.append(total_reward)
-
-# Visualization
-st.subheader("📈 Reward Progress")
-if st.session_state.rewards:
-    st.line_chart(st.session_state.rewards)
-
-# Show Q-table
 st.subheader("🧠 Q-Table")
-st.write(agent.q_table)
-
-# Simulation
-st.subheader("🚶 Simulation")
-
-state = env.reset()
-positions = []
-
-for _ in range(20):
-    action = agent.choose_action(state)
-    state, _, _ = env.step(action)
-    positions.append(state)
-
-st.write("Agent Path:", positions)
+st.write(q_table)
